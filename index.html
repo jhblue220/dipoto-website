@@ -203,6 +203,7 @@ function openSite(key) {
 }
 
 function closeSite() {
+  if (activeKey) frames[activeKey].contentWindow.location.reload();
   Object.values(frames).forEach(f => f.classList.remove('active'));
   viewer.style.pointerEvents = '';
   landing.classList.remove('hidden');
