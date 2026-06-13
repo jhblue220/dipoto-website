@@ -99,9 +99,15 @@ body {
 }
 
 #viewer iframe {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   border: none;
+  display: none;
+}
+
+#viewer iframe.active {
   display: block;
 }
 
@@ -140,25 +146,30 @@ body {
     <div id="name">Junghyun Kim</div>
   </div>
   <div id="right">
-    <a class="link" id="link-anthropocene" onclick="openSite('anthropocene/index.html')">Anthropocene</a>
-    <a class="link" id="link-archive" onclick="openSite('archive/index.html')">이력서</a>
+    <a class="link" id="link-anthropocene" onclick="openSite('anthropocene')">Anthropocene</a>
+    <a class="link" id="link-archive" onclick="openSite('archive')">이력서</a>
   </div>
 </div>
 
 <div id="viewer">
-  <iframe id="frame" src=""></iframe>
+  <iframe id="frame-anthropocene" src="anthropocene/index.html"></iframe>
+  <iframe id="frame-archive"      src="archive/index.html"></iframe>
 </div>
 
 <button id="back" onclick="closeSite()">← Back</button>
 
 <script>
-const landing = document.getElementById('landing');
-const viewer  = document.getElementById('viewer');
-const frame   = document.getElementById('frame');
-const back    = document.getElementById('back');
+const landing  = document.getElementById('landing');
+const viewer   = document.getElementById('viewer');
+const back     = document.getElementById('back');
+const frames   = {
+  'anthropocene': document.getElementById('frame-anthropocene'),
+  'archive':      document.getElementById('frame-archive'),
+};
 
-function openSite(url) {
-  frame.src = url;
+function openSite(key) {
+  Object.values(frames).forEach(f => f.classList.remove('active'));
+  frames[key].classList.add('active');
   landing.classList.add('hidden');
   viewer.classList.add('active');
   back.classList.add('active');
@@ -168,7 +179,7 @@ function closeSite() {
   viewer.classList.remove('active');
   back.classList.remove('active');
   landing.classList.remove('hidden');
-  setTimeout(() => { frame.src = ''; }, 400);
+  Object.values(frames).forEach(f => f.classList.remove('active'));
 }
 
 document.addEventListener('keydown', e => {
