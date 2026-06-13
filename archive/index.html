@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Photo Archive</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #000;
+      font-family: 'Nanum Myeongjo', serif;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    }
+
+    #stage {
+      position: fixed;
+      inset: 0;
+      z-index: 2;
+    }
+
+    /* ── Envelope ── */
+    #envelope {
+      position: absolute;
+      cursor: grab;
+      user-select: none;
+      touch-action: none;
+      transform-origin: center center;
+      z-index: 200;
+      transition: filter 0.15s;
+    }
+    #envelope:hover { filter: brightness(1.08); }
+    #envelope.grabbing { cursor: grabbing; }
+    #envelope img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    /* ── Scattered photos ── */
+    .photo {
+      position: absolute;
+      cursor: pointer;
+      user-select: none;
+      transform-origin: center center;
+      will-change: transform, left, top;
+    }
+    .photo img {
+      display: block;
+      width: 100%;
+      height: auto;
+      pointer-events: none;
+    }
+    .photo::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(255,255,255,0);
+      transition: background 0.18s;
+    }
+    .photo:hover::after { background: rgba(255,255,255,0.06); }
+
+    /* ── Hint text ── */
+    #hint {
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      color: #fff;
+      font-family: 'Pretendard', sans-serif;
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.28em;
+      pointer-events: none;
+      white-space: nowrap;
+      animation: hint-blink 1.1s step-end infinite;
+      z-index: 10;
+    }
+    #hint.gone {
+      animation: none;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+    @keyframes hint-blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0; }
+    }
+
+    /* ── Shake indicator ── */
+    #shake-meter {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    #shake-meter.active { opacity: 1; }
+    #shake-ring {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      border: 1.5px solid rgba(255,255,255,0.5);
+      background: transparent;
+      transform-origin: center center;
+      transition: transform 0.1s;
+    }
+
+    /* ── Lightbox ── */
+    #lightbox {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.94);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+    }
+    #lightbox.active {
+      display: flex;
+      animation: lb-in 0.22s ease;
+    }
+    @keyframes lb-in {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+    #lightbox img {
+      max-width: 72vw;
+      max-height: 88vh;
+      object-fit: contain;
+      pointer-events: none;
+    }
+    #lb-title {
+      position: fixed;
+      right: 6vw;
+      top: 50%;
+      transform: translateY(-50%);
+      color: rgba(255,255,255,0.75);
+      font-family: 'Nanum Myeongjo', serif;
+      font-size: 15px;
+      line-height: 1.8;
+      letter-spacing: 0.04em;
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+      pointer-events: none;
+      max-height: 80vh;
+      overflow: hidden;
+    }
+    #lb-close {
+      position: fixed;
+      top: 24px;
+      right: 28px;
+      color: rgba(255,255,255,0.35);
+      font-family: 'Nanum Myeongjo', serif;
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      pointer-events: none;
+    }
+
+    /* ── Typewriter ── */
+    #typewriter-wrap {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1;
+      pointer-events: none;
+    }
+    #typewriter {
+      font-family: 'Nanum Myeongjo', serif;
+      font-size: clamp(144px, 24vw, 288px);
+      color: #fff;
+      letter-spacing: 0.06em;
+      text-align: center;
+      white-space: nowrap;
+    }
+    #typewriter::after {
+      content: '|';
+      display: inline-block;
+      animation: blink 0.75s step-end infinite;
+      margin-left: 2px;
+      opacity: 1;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0; }
+    }
+    #typewriter-wrap.hidden {
+      opacity: 0;
+      transition: opacity 0.8s ease;
+    }
+  </style>
+</head>
+<body>
+
+<div id="typewriter-wrap">
+  <span id="typewriter"></span>
+</div>
+
+<div id="stage">
+  <div id="envelope">
+    <img id="env-img" src="image/봉투_1.png" alt="envelope">
+  </div>
+</div>
+
+<div id="lightbox">
+  <img id="lb-img" src="" alt="">
+  <span id="lb-title"></span>
+  <span id="lb-close">esc</span>
+</div>
+
+<div id="hint">SHAKE IT!</div>
+
+<script>
+/* ─────────────────────────────────────────────
+   CONFIG
+───────────────────────────────────────────── */
+const PHOTO_FILES = [
+  '거꾸로가 어때서_1.jpg','거꾸로가 어때서_2.jpg','거꾸로가 어때서_3.jpg',
+  '거꾸로가 어때서_4.jpg','거꾸로가 어때서_5.jpg','거꾸로가 어때서_6.jpg',
+  '나 좀 뽑아줘.jpg','나 좀 뽑아줘_2.jpg','너가 부럽다.jpg','너넨 왜 안자니?.jpg',
+  '넘어져도 일어서야지.jpg','달려야 산다.jpg','달려야산다_2.jpg','더마시면 죽ㄱ....jpg.jpg',
+  '돈을 쫓지마라.jpg','맘 편히 놀지를 못하네.jpg','으어ㅡㅓ으뭐라는거야.jpg',
+  '이력서.png','자도 자는게 아니야.jpg','자연에서 뛰놀고 싶다.jpg','잠의 유혹.jpg',
+  '정신차려라.jpg','집에서 일터로.jpg','하..놀러가고싶다^^.jpg','할머니의 염원.jpg',
+  '훨훨 날아가자.jpg','히히.jpg'
+];
+
+const PW = 150;   // photo width
+const PH = 200;   // photo height
+const FRICTION = 0.975;  // per-frame speed decay (1 = no friction)
+const BOUNCE   = 0.55;   // wall elasticity
+
+/* ─────────────────────────────────────────────
+   STATE
+───────────────────────────────────────────── */
+const stage    = document.getElementById('stage');
+const envEl    = document.getElementById('envelope');
+const envImg   = document.getElementById('env-img');
+const lightbox = document.getElementById('lightbox');
+const lbImg    = document.getElementById('lb-img');
+const hint     = document.getElementById('hint');
+
+let envW = 0, envH = 0;
+let envX = window.innerWidth / 2;
+let envY = window.innerHeight / 2;
+
+let isDragging   = false;
+let dragOX = 0, dragOY = 0;
+let mousePts     = [];          // {x,y,t}
+let isOpen       = false;
+let scattered    = false;
+
+let photos = [];                // live physics objects
+let rafId  = null;
+
+// Photo drag state
+let dragPhoto    = null;
+let dragPhotoOX  = 0, dragPhotoOY = 0;
+let dragPhotoHist = [];
+let photoTopZ    = 50;   // increments each grab; envelope stays at 200
+
+/* ─────────────────────────────────────────────
+   ENVELOPE SETUP
+───────────────────────────────────────────── */
+function initEnvelope() {
+  const maxW = Math.min(260, window.innerWidth * 0.38);
+  const nat  = envImg.naturalWidth || 260;
+  const natH = envImg.naturalHeight || 180;
+  const scale = Math.min(1, maxW / nat);
+  envW = nat * scale;
+  envH = natH * scale;
+  envEl.style.width  = envW + 'px';
+  envEl.style.height = envH + 'px';
+  envImg.style.cssText = 'width:100%;height:100%;object-fit:contain;';
+  placeEnvelope();
+}
+
+function placeEnvelope() {
+  envEl.style.left = (envX - envW / 2) + 'px';
+  envEl.style.top  = (envY - envH / 2) + 'px';
+  hint.style.top   = (envY + envH / 2 + 20) + 'px';
+}
+
+envImg.addEventListener('load', initEnvelope);
+if (envImg.complete) initEnvelope();
+
+/* ─────────────────────────────────────────────
+   DRAG
+───────────────────────────────────────────── */
+envEl.addEventListener('mousedown', e => {
+  isDragging = true;
+  dragOX = e.clientX - envX;
+  dragOY = e.clientY - envY;
+  envEl.classList.add('grabbing');
+  mousePts = [];
+  e.preventDefault();
+});
+
+document.addEventListener('mousemove', e => {
+  // ── 봉투 드래그 ──
+  if (isDragging) {
+    envX = e.clientX - dragOX;
+    envY = e.clientY - dragOY;
+    placeEnvelope();
+
+    if (!isOpen) {
+      isOpen = true;
+      envImg.src = 'image/봉투_2.png';
+    }
+
+    mousePts.push({ x: e.clientX, y: e.clientY, t: performance.now() });
+    if (mousePts.length > 12) mousePts.shift();
+    if (!scattered) checkShake();
+  }
+
+  // ── 사진 드래그 ──
+  if (dragPhoto) {
+    dragPhoto.x = e.clientX - dragPhotoOX;
+    dragPhoto.y = e.clientY - dragPhotoOY;
+    dragPhoto.el.style.left = (dragPhoto.x - PW / 2) + 'px';
+    dragPhoto.el.style.top  = (dragPhoto.y - PH / 2) + 'px';
+
+    dragPhotoHist.push({ x: e.clientX, y: e.clientY, t: performance.now() });
+    if (dragPhotoHist.length > 8) dragPhotoHist.shift();
+  }
+});
+
+document.addEventListener('mouseup', e => {
+  // ── 봉투 드래그 종료 ──
+  if (isDragging) {
+    isDragging = false;
+    envEl.classList.remove('grabbing');
+    mousePts = [];
+  }
+
+  // ── 사진 던지기 ──
+  if (dragPhoto) {
+    const p = dragPhoto;
+    dragPhoto = null;
+
+    if (dragPhotoHist.length >= 2) {
+      const recent = dragPhotoHist.slice(-4);
+      const dt = (recent[recent.length - 1].t - recent[0].t) || 1;
+      p.vx = (recent[recent.length - 1].x - recent[0].x) / dt * 16;
+      p.vy = (recent[recent.length - 1].y - recent[0].y) / dt * 16;
+      p.rotV = p.vx * 0.04;
+      p.landed = false;
+      if (!rafId) rafId = requestAnimationFrame(physicsLoop);
+    } else {
+      // 드래그 없이 클릭만 — 정지 상태 유지
+      p.vx = 0; p.vy = 0; p.rotV = 0;
+      p.landed = true;
+    }
+
+    dragPhotoHist = [];
+  }
+});
+
+/* ─────────────────────────────────────────────
+   SHAKE DETECTION
+───────────────────────────────────────────── */
+function checkShake() {
+  if (mousePts.length < 3) return;
+
+  const pts = mousePts.slice(-4);
+  const dt  = pts[pts.length - 1].t - pts[0].t;
+  if (dt < 1) return;
+
+  let dist = 0;
+  for (let i = 1; i < pts.length; i++) {
+    dist += Math.hypot(pts[i].x - pts[i-1].x, pts[i].y - pts[i-1].y);
+  }
+
+  const speed = (dist / dt) * 1000;
+  if (speed > 400) {
+    triggerScatter();
+  }
+}
+
+/* ─────────────────────────────────────────────
+   SCATTER
+───────────────────────────────────────────── */
+function triggerScatter() {
+  if (scattered) return;
+  scattered = true;
+  isOpen = true;
+  envImg.src = 'image/봉투_2.png';
+  hint.classList.add('gone');
+  hideTypewriter();
+
+  // 흔드는 방향 속도 추출
+  let shakeVx = 0, shakeVy = 0;
+  if (mousePts.length >= 2) {
+    const a = mousePts[0], b = mousePts[mousePts.length - 1];
+    const dt = (b.t - a.t) || 1;
+    shakeVx = (b.x - a.x) / dt * 16; // 프레임 단위 속도로 환산
+    shakeVy = (b.y - a.y) / dt * 16;
+  }
+
+  const files = [...PHOTO_FILES];
+  for (let i = files.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [files[i], files[j]] = [files[j], files[i]];
+  }
+
+  files.forEach((file, i) => {
+    setTimeout(() => spawnPhoto(file, i, shakeVx, shakeVy), i * 40 + Math.random() * 20);
+  });
+
+  if (!rafId) rafId = requestAnimationFrame(physicsLoop);
+}
+
+function spawnPhoto(file, zIdx, shakeVx, shakeVy) {
+  const el = document.createElement('div');
+  el.className = 'photo';
+  const pw = file === '집에서 일터로.jpg' ? PW * 2 : PW;
+  el.style.width  = pw + 'px';
+  el.style.zIndex = zIdx + 1;
+
+  const img = document.createElement('img');
+  img.src = 'image/' + encodeURIComponent(file);
+  img.alt = file;
+  img.draggable = false;
+  el.appendChild(img);
+  stage.appendChild(el);
+
+  // 흔드는 방향 기반으로 퍼짐 — 360° 랜덤 + 셰이크 벡터 편향
+  const angle  = Math.random() * Math.PI * 2;
+  const spd    = 8 + Math.random() * 10;
+  const vx     = Math.cos(angle) * spd + shakeVx * 0.5;
+  const vy     = Math.sin(angle) * spd + shakeVy * 0.5;
+
+  const p = {
+    el, file,
+    x:    envX + (Math.random() - 0.5) * 40,
+    y:    envY + (Math.random() - 0.5) * 40,
+    vx, vy,
+    rot:  (Math.random() - 0.5) * 30,
+    rotV: (Math.random() - 0.5) * 3,
+    landed: false,
+    zIdx,
+    pw,
+    ph: pw * 1.4   // 기본값; 이미지 로드 후 실제 비율로 갱신
+  };
+
+  img.addEventListener('load', () => {
+    if (img.naturalWidth > 0) {
+      p.ph = img.naturalHeight * (pw / img.naturalWidth);
+    }
+  });
+
+  photos.push(p);
+
+  // 사진 드래그 시작
+  el.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    e.stopPropagation();      // 봉투 드래그 방지
+    e.preventDefault();
+
+    dragPhoto   = p;
+    dragPhotoOX = e.clientX - p.x;
+    dragPhotoOY = e.clientY - p.y;
+    dragPhotoHist = [];
+
+    // 맨 위로 (봉투 z-index 200보다 항상 아래)
+    photoTopZ = Math.min(photoTopZ + 1, 198);
+    p.el.style.zIndex = photoTopZ;
+    p.el.style.cursor = 'grabbing';
+
+    // 물리 일시정지
+    p.vx = 0; p.vy = 0; p.rotV = 0;
+    p.landed = true;
+    p._dragStartX = e.clientX;
+    p._dragStartY = e.clientY;
+  });
+
+  el.addEventListener('mouseup', e => {
+    p.el.style.cursor = 'pointer';
+  });
+
+  // 클릭(드래그 아닌 경우만) → 라이트박스
+  el.addEventListener('click', e => {
+    const dx = e.clientX - (p._dragStartX || e.clientX);
+    const dy = e.clientY - (p._dragStartY || e.clientY);
+    if (Math.hypot(dx, dy) > 6) return;   // 드래그였으면 무시
+    if (!p.landed) return;
+    openLightbox(file);
+  });
+}
+
+/* ─────────────────────────────────────────────
+   PHYSICS LOOP — 중력 없음, 마찰 + 4면 벽 반사
+───────────────────────────────────────────── */
+function physicsLoop() {
+  let allDone = photos.length > 0;
+
+  for (const p of photos) {
+    if (p.landed) continue;
+
+    // 마찰로 속도 감쇠
+    p.vx   *= FRICTION;
+    p.vy   *= FRICTION;
+    p.rotV *= FRICTION;
+
+    p.x += p.vx;
+    p.y += p.vy;
+    p.rot += p.rotV;
+
+    // 4면 벽 반사 (사진마다 실제 높이 사용)
+    const hw = (p.pw || PW) / 2, hh = (p.ph || PW) / 2;
+    if (p.x < hw)                        { p.x = hw;                        p.vx =  Math.abs(p.vx) * BOUNCE; p.rotV *= -0.6; }
+    if (p.x > window.innerWidth  - hw)   { p.x = window.innerWidth  - hw;   p.vx = -Math.abs(p.vx) * BOUNCE; p.rotV *= -0.6; }
+    if (p.y < hh)                        { p.y = hh;                        p.vy =  Math.abs(p.vy) * BOUNCE; p.rotV *= -0.6; }
+    if (p.y > window.innerHeight - hh)   { p.y = window.innerHeight - hh;   p.vy = -Math.abs(p.vy) * BOUNCE; p.rotV *= -0.6; }
+
+    // 속도가 충분히 줄면 정지
+    const speed = Math.hypot(p.vx, p.vy);
+    if (speed < 0.15 && Math.abs(p.rotV) < 0.05) {
+      p.vx = 0; p.vy = 0; p.rotV = 0;
+      p.landed = true;
+    } else {
+      allDone = false;
+    }
+
+    p.el.style.left      = (p.x - hw) + 'px';
+    p.el.style.top       = (p.y - hh) + 'px';
+    p.el.style.transform = `rotate(${p.rot}deg)`;
+  }
+
+  if (allDone) { rafId = null; return; }
+  rafId = requestAnimationFrame(physicsLoop);
+}
+
+/* ─────────────────────────────────────────────
+   LIGHTBOX
+───────────────────────────────────────────── */
+function openLightbox(file) {
+  lbImg.src = 'image/' + encodeURIComponent(file);
+  // 확장자 제거한 파일명을 제목으로
+  document.getElementById('lb-title').textContent = file.replace(/\.[^.]+$/, '');
+  lightbox.classList.add('active');
+}
+
+lightbox.addEventListener('click', closeLightbox);
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeLightbox();
+});
+
+function closeLightbox() {
+  lightbox.classList.remove('active');
+  lbImg.src = '';
+}
+
+/* ─────────────────────────────────────────────
+   TYPEWRITER
+───────────────────────────────────────────── */
+const TW_PHRASES   = ['치열하고', '열정적인', '26년도', '누군가의', '이력서'];
+const TW_TYPE_MS   = 130;   // 타이핑 속도 (글자당 ms)
+const TW_DEL_MS    = 70;    // 지우기 속도
+const TW_PAUSE_END = 900;   // 완성 후 대기
+const TW_PAUSE_GAP = 250;   // 다음 단어 전 대기
+
+const twEl   = document.getElementById('typewriter');
+const twWrap = document.getElementById('typewriter-wrap');
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function typewriterLoop() {
+  let idx = 0;
+  while (true) {
+    const phrase = TW_PHRASES[idx];
+
+    // 타이핑
+    for (let i = 1; i <= phrase.length; i++) {
+      twEl.textContent = phrase.slice(0, i);
+      await sleep(TW_TYPE_MS);
+    }
+
+    await sleep(TW_PAUSE_END);
+
+    // 지우기
+    for (let i = phrase.length - 1; i >= 0; i--) {
+      twEl.textContent = phrase.slice(0, i);
+      await sleep(TW_DEL_MS);
+    }
+
+    await sleep(TW_PAUSE_GAP);
+    idx = (idx + 1) % TW_PHRASES.length;
+  }
+}
+
+typewriterLoop();
+
+// 사진 흩뿌려지면 타이프라이터 페이드 아웃
+function hideTypewriter() {
+  twWrap.classList.add('hidden');
+}
+
+/* ─────────────────────────────────────────────
+   HINT FADE
+───────────────────────────────────────────── */
+// hint는 scatter 시 .gone으로 제거
+</script>
+</body>
+</html>

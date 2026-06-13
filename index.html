@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>디포토</title>
+<link href="https://fonts.googleapis.com/css2?family=Bitcount+Prop+Single:wght@300&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  cursor: default;
+  user-select: none;
+}
+
+#split {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Left panel (Anthropocene) ── */
+.panel {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  cursor: pointer;
+  transition: flex 0.65s cubic-bezier(0.77, 0, 0.18, 1);
+}
+
+.panel:hover { flex: 1.45; }
+
+/* divider */
+.panel:first-child::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1px;
+  height: 60%;
+  background: rgba(128,128,128,0.35);
+  z-index: 10;
+  pointer-events: none;
+  transition: height 0.65s cubic-bezier(0.77, 0, 0.18, 1);
+}
+.panel:first-child:hover::after,
+.panel:first-child:has(~ .panel:hover)::after {
+  height: 30%;
+}
+
+#panel-a {
+  background: #fff;
+}
+
+#panel-b {
+  background: #000;
+}
+
+/* ── Canvas sphere preview ── */
+#preview-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* ── Archive preview dots ── */
+.dot {
+  position: absolute;
+  border-radius: 2px;
+  background: rgba(255,255,255,0.08);
+  pointer-events: none;
+  transform-origin: center;
+}
+
+/* ── Labels ── */
+.label-wrap {
+  position: relative;
+  z-index: 5;
+  text-align: center;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.label-title {
+  font-size: 13px;
+  letter-spacing: 0.55em;
+  text-transform: uppercase;
+  line-height: 1;
+  transition: opacity 0.3s;
+}
+
+.label-sub {
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  opacity: 0;
+  transition: opacity 0.35s 0.05s;
+}
+
+.panel:hover .label-sub { opacity: 1; }
+
+#panel-a .label-title { font-family: 'Bitcount Prop Single', monospace; font-weight: 300; color: #000; }
+#panel-a .label-sub   { font-family: 'Bitcount Prop Single', monospace; font-weight: 300; color: #aaa; }
+
+#panel-b .label-title { font-family: 'Nanum Myeongjo', serif; color: #fff; }
+#panel-b .label-sub   { font-family: 'Nanum Myeongjo', serif; color: #666; }
+
+/* ── Enter arrow ── */
+.arrow {
+  position: absolute;
+  bottom: 48px;
+  left: 50%;
+  transform: translateX(-50%) translateY(6px);
+  opacity: 0;
+  transition: opacity 0.35s, transform 0.35s;
+  font-size: 11px;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+.panel:hover .arrow {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+#panel-a .arrow { font-family: 'Bitcount Prop Single', monospace; color: #000; }
+#panel-b .arrow { font-family: 'Nanum Myeongjo', serif; color: #fff; }
+
+/* ── Overlay fade ── */
+#overlay {
+  position: fixed;
+  inset: 0;
+  background: #fff;
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.45s ease;
+}
+#overlay.dark { background: #000; }
+#overlay.fade { opacity: 1; pointer-events: all; }
+</style>
+</head>
+<body>
+
+<div id="split">
+  <!-- Left: Anthropocene -->
+  <div class="panel" id="panel-a" onclick="enter('anthropocene/index.html', false)">
+    <canvas id="preview-canvas"></canvas>
+    <div class="label-wrap">
+      <div class="label-title">Anthropocene</div>
+      <div class="label-sub">Interactive Sphere</div>
+    </div>
+    <div class="arrow">Enter →</div>
+  </div>
+
+  <!-- Right: Archive -->
+  <div class="panel" id="panel-b" onclick="enter('archive/index.html', true)">
+    <div id="dots-wrap"></div>
+    <div class="label-wrap">
+      <div class="label-title">이력서</div>
+      <div class="label-sub">Photo Archive</div>
+    </div>
+    <div class="arrow">Enter →</div>
+  </div>
+</div>
+
+<div id="overlay"></div>
+
+<script>
+// ── Navigate with fade ──────────────────────────────────────
+function enter(url, dark) {
+  const ov = document.getElementById('overlay');
+  if (dark) ov.classList.add('dark'); else ov.classList.remove('dark');
+  ov.classList.add('fade');
+  setTimeout(() => { window.location.href = url; }, 420);
+}
+
+// ── Left panel: animated sphere preview ────────────────────
+(function() {
+  const canvas = document.getElementById('preview-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const N = 22;
+  const RADIUS = 90;
+  const FOCAL = 600;
+
+  let angleY = 0;
+  let pts = [];
+
+  function seed_pts() {
+    let s = 137;
+    function r() {
+      s = (s * 1664525 + 1013904223) & 0x7fffffff;
+      return s / 0x7fffffff;
+    }
+    while (pts.length < N) {
+      const u = r() * 2 - 1;
+      const th = r() * Math.PI * 2;
+      const rr = Math.sqrt(Math.max(0, 1 - u*u));
+      if (Math.abs(u) < 0.92) pts.push({ x: rr * Math.cos(th), y: u, z: rr * Math.sin(th) });
+    }
+  }
+  seed_pts();
+
+  function resize() {
+    const panel = document.getElementById('panel-a');
+    canvas.width  = panel.offsetWidth;
+    canvas.height = panel.offsetHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  function tick() {
+    angleY += 0.006;
+    const cos = Math.cos(angleY), sin = Math.sin(angleY);
+    const W = canvas.width, H = canvas.height;
+    const cx = W / 2, cy = H / 2;
+
+    ctx.clearRect(0, 0, W, H);
+
+    // draw lines between close points (wireframe feel)
+    const proj = pts.map(p => {
+      const x1 =  p.x * cos + p.z * sin;
+      const z1 = -p.x * sin + p.z * cos;
+      const dz = FOCAL - z1 * RADIUS;
+      const ps = dz > 0 ? FOCAL / dz : 1;
+      return { x: cx + x1 * RADIUS * ps, y: cy + p.y * RADIUS * ps, z: z1, ps };
+    });
+
+    ctx.strokeStyle = 'rgba(0,0,0,0.06)';
+    ctx.lineWidth = 0.6;
+    for (let i = 0; i < proj.length; i++) {
+      for (let j = i + 1; j < proj.length; j++) {
+        const dx = proj[i].x - proj[j].x, dy = proj[i].y - proj[j].y;
+        if (dx*dx + dy*dy < 5000) {
+          ctx.beginPath();
+          ctx.moveTo(proj[i].x, proj[i].y);
+          ctx.lineTo(proj[j].x, proj[j].y);
+          ctx.stroke();
+        }
+      }
+    }
+
+    // draw nodes
+    proj.forEach(p => {
+      const depth = (p.z + 1) / 2;
+      const r = (2.5 + depth * 2) * p.ps;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, Math.max(0.5, r), 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(0,0,0,${0.08 + depth * 0.18})`;
+      ctx.fill();
+    });
+
+    requestAnimationFrame(tick);
+  }
+  tick();
+})();
+
+// ── Right panel: scattered photo stubs ─────────────────────
+(function() {
+  const wrap = document.getElementById('dots-wrap');
+  const panel = document.getElementById('panel-b');
+
+  function makeDots() {
+    wrap.innerHTML = '';
+    const W = panel.offsetWidth, H = panel.offsetHeight;
+    const count = 18;
+    for (let i = 0; i < count; i++) {
+      const d = document.createElement('div');
+      d.className = 'dot';
+      const w = 60 + Math.random() * 60;
+      const h = w * (1.2 + Math.random() * 0.5);
+      d.style.width  = w + 'px';
+      d.style.height = h + 'px';
+      d.style.left   = (Math.random() * (W - w)) + 'px';
+      d.style.top    = (Math.random() * (H - h)) + 'px';
+      d.style.transform = `rotate(${(Math.random()-0.5)*30}deg)`;
+      d.style.background = `rgba(255,255,255,${0.04 + Math.random()*0.07})`;
+      wrap.appendChild(d);
+    }
+  }
+  makeDots();
+  window.addEventListener('resize', makeDots);
+
+  // gentle float animation
+  const dots = () => [...wrap.querySelectorAll('.dot')];
+  let t = 0;
+  function floatDots() {
+    t += 0.008;
+    dots().forEach((d, i) => {
+      const dy = Math.sin(t + i * 0.7) * 3;
+      d.style.marginTop = dy + 'px';
+    });
+    requestAnimationFrame(floatDots);
+  }
+  floatDots();
+})();
+</script>
+</body>
+</html>
