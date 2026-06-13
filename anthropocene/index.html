@@ -553,7 +553,7 @@ window.addEventListener('mouseup', () => {
 });
 
 // ── Mouse wheel: scroll down=zoom in, up=zoom out/scroll back ──
-scene.addEventListener('wheel', (e) => {
+window.addEventListener('wheel', (e) => {
   e.preventDefault();
   const inList = targetZoomT >= 1;
   const atTop  = targetListScrollY <= 0;
