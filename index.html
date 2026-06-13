@@ -208,6 +208,11 @@ function closeSite() {
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && back.classList.contains('active')) closeSite();
 });
+
+window.addEventListener('message', e => {
+  if (e.data === 'lightbox:open')  back.style.opacity = '0';
+  if (e.data === 'lightbox:close') back.style.opacity = '';
+});
 </script>
 
 </body>

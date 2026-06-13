@@ -507,11 +507,13 @@ function openLightbox(index) {
   }
   lightbox.classList.add('active');
   autoRotate = false;
+  window.parent.postMessage('lightbox:open', '*');
 }
 
 function closeLightbox() {
   lightbox.classList.remove('active');
   autoRotate = true;
+  window.parent.postMessage('lightbox:close', '*');
 }
 
 lightbox.addEventListener('click', closeLightbox);
