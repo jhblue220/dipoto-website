@@ -203,12 +203,13 @@ function openSite(key) {
 }
 
 function closeSite() {
-  if (activeKey) frames[activeKey].contentWindow.location.reload();
+  const key = activeKey;
+  activeKey = null;
   Object.values(frames).forEach(f => f.classList.remove('active'));
   viewer.style.pointerEvents = '';
   landing.classList.remove('hidden');
   back.classList.remove('active');
-  activeKey = null;
+  if (key) try { frames[key].contentWindow.location.reload(); } catch(e) {}
 }
 
 document.addEventListener('keydown', e => {
