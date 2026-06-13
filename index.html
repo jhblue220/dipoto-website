@@ -191,6 +191,7 @@ const frames  = {
 };
 
 const viewer = document.getElementById('viewer');
+let activeKey = null;
 
 function openSite(key) {
   Object.values(frames).forEach(f => f.classList.remove('active'));
@@ -198,6 +199,7 @@ function openSite(key) {
   viewer.style.pointerEvents = 'all';
   landing.classList.add('hidden');
   back.classList.add('active');
+  activeKey = key;
 }
 
 function closeSite() {
@@ -205,11 +207,22 @@ function closeSite() {
   viewer.style.pointerEvents = '';
   landing.classList.remove('hidden');
   back.classList.remove('active');
+  activeKey = null;
 }
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && back.classList.contains('active')) closeSite();
 });
+
+// 부모에서 wheel 이벤트를 잡아 활성 iframe에 postMessage로 전달
+window.addEventListener('wheel', (e) => {
+  if (activeKey && frames[activeKey]) {
+    e.preventDefault();
+    frames[activeKey].contentWindow.postMessage(
+      { type: 'wheel', deltaY: e.deltaY, deltaX: e.deltaX }, '*'
+    );
+  }
+}, { passive: false });
 
 window.addEventListener('message', e => {
   if (e.data === 'lightbox:open')  back.style.opacity = '0';

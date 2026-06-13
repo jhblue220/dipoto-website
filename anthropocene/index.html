@@ -552,28 +552,34 @@ window.addEventListener('mouseup', () => {
   setTimeout(() => { if (!isDragging && !isHovering) autoRotate = true; }, 800);
 });
 
-// ── Mouse wheel: scroll down=zoom in, up=zoom out/scroll back ──
-window.addEventListener('wheel', (e) => {
-  e.preventDefault();
+// ── Mouse wheel: 부모에서 postMessage로 전달받은 wheel 처리 ──
+function handleWheel(deltaY) {
   const inList = targetZoomT >= 1;
   const atTop  = targetListScrollY <= 0;
   const maxScroll = Math.max(0, LIST_START_Y + (N - 1) * LIST_ITEM_H + LIST_H / 2 + 100);
 
   if (!inList) {
-    // Sphere mode: down=zoom in, up=zoom out
-    targetZoomT += e.deltaY * 0.0012;
+    targetZoomT += deltaY * 0.0012;
     targetZoomT = Math.max(0, Math.min(1, targetZoomT));
-  } else if (e.deltaY < 0 && atTop) {
-    // List top + scroll up → zoom back out
-    targetZoomT += e.deltaY * 0.0012;
+  } else if (deltaY < 0 && atTop) {
+    targetZoomT += deltaY * 0.0012;
     targetZoomT = Math.max(0, targetZoomT);
     if (targetZoomT < 1) targetListScrollY = 0;
   } else {
-    // List scroll (finite)
-    targetListScrollY += e.deltaY * 0.6;
+    targetListScrollY += deltaY * 0.6;
     targetListScrollY = Math.max(0, Math.min(maxScroll, targetListScrollY));
   }
+}
+
+// 직접 wheel (standalone) + postMessage (iframe) 모두 지원
+window.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  handleWheel(e.deltaY);
 }, { passive: false });
+
+window.addEventListener('message', (e) => {
+  if (e.data && e.data.type === 'wheel') handleWheel(e.data.deltaY);
+});
 
 // ── Touch drag ───────────────────────────────────────────
 let lastTX = 0, lastTY = 0;
