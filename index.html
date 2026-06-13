@@ -190,17 +190,19 @@ const frames  = {
   archive:      document.getElementById('frame-archive'),
 };
 
+const viewer = document.getElementById('viewer');
+
 function openSite(key) {
-  // 다른 iframe 비활성화
   Object.values(frames).forEach(f => f.classList.remove('active'));
-  // 선택한 iframe 활성화
   frames[key].classList.add('active');
+  viewer.style.pointerEvents = 'all';
   landing.classList.add('hidden');
   back.classList.add('active');
 }
 
 function closeSite() {
   Object.values(frames).forEach(f => f.classList.remove('active'));
+  viewer.style.pointerEvents = '';
   landing.classList.remove('hidden');
   back.classList.remove('active');
 }
