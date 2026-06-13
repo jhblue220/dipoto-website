@@ -104,11 +104,11 @@ body {
   width: 100%;
   height: 100%;
   border: none;
-  display: none;
+  visibility: hidden;
 }
 
 #viewer iframe.active {
-  display: block;
+  visibility: visible;
 }
 
 /* ── 뒤로가기 버튼 ── */
@@ -169,7 +169,13 @@ const frames   = {
 
 function openSite(key) {
   Object.values(frames).forEach(f => f.classList.remove('active'));
-  frames[key].classList.add('active');
+  const f = frames[key];
+  if (!f.dataset.loaded) {
+    f.dataset.loaded = '1';
+  } else {
+    f.contentWindow.location.reload();
+  }
+  f.classList.add('active');
   landing.classList.add('hidden');
   viewer.classList.add('active');
   back.classList.add('active');
